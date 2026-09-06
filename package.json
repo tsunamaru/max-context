@@ -9,6 +9,10 @@
     "type": "git",
     "url": "git+https://github.com/indie-arch/max-context.git"
   },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "npm run build --silent && node --test --experimental-test-coverage --test-coverage-include=dist/index.js --test-coverage-lines=100 --test-coverage-functions=100 --test-coverage-branches=90 tests"
+  },
   "peerDependencies": {
     "@earendil-works/pi-ai": "*",
     "@earendil-works/pi-coding-agent": "*",
@@ -18,5 +22,8 @@
     "extensions": [
       "./extensions"
     ]
+  },
+  "devDependencies": {
+    "typescript": "^7.0.2"
   }
 }

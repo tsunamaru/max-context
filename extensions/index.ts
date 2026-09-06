@@ -1,7 +1,6 @@
 import type { ImageContent, TextContent } from "@earendil-works/pi-ai";
 import type { ExtensionAPI, ExtensionContext, InputEvent } from "@earendil-works/pi-coding-agent";
 
-const STATUS_ID = "max-context";
 const MIN_BUFFER_TOKENS = 512;
 const MAX_BUFFER_TOKENS = 16_384;
 
@@ -95,26 +94,6 @@ export default function (pi: ExtensionAPI) {
 		return { shouldCompact: true, tokens, threshold, buffer };
 	}
 
-	function getStatusText(ctx: ExtensionContext): string | undefined {
-		if (maxContextTokens === null) return undefined;
-
-		const usage = ctx.getContextUsage();
-		const tokens = usage && typeof usage.tokens === "number" ? usage.tokens : null;
-		const contextWindow = usage?.contextWindow || ctx.model?.contextWindow;
-		const state = compactionInFlight ? "compacting…" : "auto";
-		const usageText =
-			tokens === null
-				? `ctx ?/${fmt(maxContextTokens)}`
-				: `ctx ${((tokens / maxContextTokens) * 100).toFixed(1)}%/${fmt(maxContextTokens)}`;
-		const windowText = contextWindow ? ` (${fmt(contextWindow)} window)` : "";
-		return `${usageText}${windowText} ${state}`;
-	}
-
-	function updateStatus(ctx: ExtensionContext) {
-		if (!ctx.hasUI) return;
-		ctx.ui.setStatus(STATUS_ID, getStatusText(ctx));
-	}
-
 	function contentForPendingInput(input: PendingUserInput): string | (TextContent | ImageContent)[] {
 		if (!input.images?.length) return input.text;
 
@@ -151,14 +130,10 @@ export default function (pi: ExtensionAPI) {
 		if (maxContextTokens === null || compactionInFlight) return false;
 
 		const decision = getCompactionDecision(ctx);
-		if (!decision.shouldCompact) {
-			updateStatus(ctx);
-			return false;
-		}
+		if (!decision.shouldCompact) return false;
 
 		compactionInFlight = true;
 		lastCompactionStartedAtTokens = decision.tokens;
-		updateStatus(ctx);
 
 		notify(
 			ctx,
@@ -171,13 +146,11 @@ export default function (pi: ExtensionAPI) {
 				customInstructions: `Compact the conversation to keep total context near the configured soft limit of ${maxContextTokens} tokens. Preserve all important decisions, code changes, and next steps.`,
 				onComplete: () => {
 					compactionInFlight = false;
-					updateStatus(ctx);
 					notify(ctx, "Context compaction completed.", "info");
 					flushPendingUserInputs(ctx);
 				},
 				onError: (error) => {
 					compactionInFlight = false;
-					updateStatus(ctx);
 					notify(ctx, `Context compaction failed: ${error.message}`, "error");
 					flushPendingUserInputs(ctx);
 				},
@@ -185,7 +158,6 @@ export default function (pi: ExtensionAPI) {
 			return true;
 		} catch (error) {
 			compactionInFlight = false;
-			updateStatus(ctx);
 			const message = error instanceof Error ? error.message : String(error);
 			notify(ctx, `Context compaction failed: ${message}`, "error");
 			return false;
@@ -208,14 +180,12 @@ export default function (pi: ExtensionAPI) {
 				} else {
 					notify(ctx, "No max context soft limit set. Usage: /max-context 256k", "info");
 				}
-				updateStatus(ctx);
 				return;
 			}
 
 			if (isDisableValue(args)) {
 				maxContextTokens = null;
 				lastCompactionStartedAtTokens = null;
-				updateStatus(ctx);
 				notify(ctx, "Max context auto-compaction disabled.", "info");
 				return;
 			}
@@ -232,7 +202,6 @@ export default function (pi: ExtensionAPI) {
 
 			maxContextTokens = parsed;
 			lastCompactionStartedAtTokens = null;
-			updateStatus(ctx);
 
 			notify(
 				ctx,
@@ -248,8 +217,6 @@ export default function (pi: ExtensionAPI) {
 		if (event.source === "extension" || maxContextTokens === null || !ctx.isIdle()) {
 			return { action: "continue" };
 		}
-
-		updateStatus(ctx);
 
 		if (compactionInFlight) {
 			enqueueUserInput(event);
@@ -272,19 +239,6 @@ export default function (pi: ExtensionAPI) {
 
 	// After each completed prompt, compact while idle if the soft limit was crossed.
 	pi.on("agent_end", async (_event, ctx) => {
-		updateStatus(ctx);
 		startCompaction(ctx, "compacting while idle before the next prompt...");
-	});
-
-	pi.on("model_select", async (_event, ctx) => {
-		updateStatus(ctx);
-	});
-
-	pi.on("session_compact", async (_event, ctx) => {
-		updateStatus(ctx);
-	});
-
-	pi.on("session_start", async (_event, ctx) => {
-		updateStatus(ctx);
 	});
 }

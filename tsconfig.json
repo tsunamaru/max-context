@@ -1,0 +1,13 @@
+{
+  "compilerOptions": {
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "target": "ES2022",
+    "strict": true,
+    "skipLibCheck": true,
+    "rootDir": "extensions",
+    "outDir": "dist",
+    "noEmitOnError": true
+  },
+  "include": ["extensions/**/*.ts"]
+}

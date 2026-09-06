@@ -1,5 +1,7 @@
 .npmrc
 .git/
 node_modules/
+dist/
+tests/
 *.tgz
 .DS_Store
